@@ -1,5 +1,0 @@
-execute with:
-
-blockMesh
-cp initialFields/* 0/
-simpleScalarFoam
