@@ -1,0 +1,102 @@
+
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v1806                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      s;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+//#include "../simParas"
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0.0001;
+
+boundaryField
+{
+    MEMBRANE
+    {
+    	type 	codedFixedValue;
+    	value 	uniform 0.0001;
+    	name 	membrCtr;
+
+    	code
+    	#{
+    	    scalar s_D 		= 0.035;	 	// draw side concentration
+
+    		scalar B_	 	= 0.16;		// [LMH]
+			scalar S_		= 3.07e-4;		// [m]
+    		scalar D_		= 1.48e-9;		// [m^2/s]
+
+			scalar s_D_		= s_D*1000; //[convert from g/g to g/l
+			scalar K_		= (S_/D_)/3.6e6; // [m^2-hr/L]
+			scalar dt_		= 0.000277778; //hr - based on timestep of 1s - if dt changes, change here too
+			scalar t = this->db().time().value();
+			
+			Info<< "t = " << t << endl;
+			
+    	    const scalarField s		= patch().lookupPatchField<volScalarField, scalar>("s");
+			
+    		Info<< "s_outa = " << s << endl;
+			if (t<20)
+			{	
+			    //scalarField s_out_1 = s_F; //converts to g/g
+				//scalarField s   = ( max( s_out_1/1000, 0.0) );
+			    Info<< "s_outb = " << s << endl;
+				operator==(s);
+			}
+			else
+			{
+				const vectorField u 	= patch().lookupPatchField<volVectorField, vector>("U");
+				const scalarField s_F 	= s * 1000; //convert from g/g to g/l
+			    //Info<< "s_F = " << s_F << endl;
+    		    const vectorField fNs 	= patch().nf(); // face normals
+			
+    		    const scalarField jw_ms = u & -fNs; //[m/s]
+			    const scalarField jw 	= -jw_ms*3.6e6; //[LMH]
+			    //Info<< "jw = " << jw << endl;
+    		    const fvPatch& boundaryPatch = this->patch(); 
+			
+				const scalarField Am 	= boundaryPatch.magSf(); //area [m2]
+				const scalarField d 	= 2.0/patch().deltaCoeffs(); //height
+				const scalarField vol	= Am*d*1000; //volume [L]
+				
+			    const scalarField js 	= (B_ * ((s_D_*exp(-jw*K_) - s_F*exp(jw*K_))/(1 + (B_/jw)*(exp(jw*K_) - exp(-jw*K_)))));
+				
+				//Info<< "Am = " << Am << "d = " << d << "vol = " << vol << "js = " << js << "jw = " << jw << "s_F = " << s_F << "dt_ = " << dt_ << endl;
+				//s_out_1 has /2 at end since s is calculated twice - prevents unnecessarily fast buildup
+				scalarField s_out_1 =  min((((Am*dt_)/vol)*(js-jw*s_F))/2 + s_F, 1.2); //1.2 is a built in maxima - can remove if needed.
+				scalarField s   = ( max( s_out_1/1000, 0.0) );
+				Info<< "s_outc = " << s << endl;
+				operator==(s);
+			}
+    	#};
+    }
+
+    INLET
+    {
+        type            fixedValue;
+        value           uniform 0.0001;
+    }
+    OUTLET
+    {
+        type            zeroGradient;
+    }
+    SYM
+    {
+        type            symmetry;
+    }
+}
+
+
+// ************************************************************************* //
