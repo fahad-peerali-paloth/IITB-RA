@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Execute blockMesh
+blockMesh
+
+checkMesh -writeSets vtk
+
+PNAME=p
+# Initialise flow
+mkdir -p 0/
+
+# Copy initialFields to 0/ directory
+cp -r initialFields/* 0/
+
+# Run simpleScalarFoam
+simpleScalarFoam
+
+tail -n 1 postProcessing/flowRatePatch\(name\=MEMBRANE\)/0/surfaceFieldValue.dat | cut -c 15- >> 2DRIZQ_memb.txt
+tail -n 1 postProcessing/pressureDifferencePatch/0/fieldValueDelta.dat | cut -c 15- >> 2DRIZdP.txt
+
+mv 2DRIZQ_memb.txt ../
+mv 2DRIZdP.txt ../
+
